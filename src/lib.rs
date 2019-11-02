@@ -9,9 +9,11 @@ use std::collections::HashMap;
 use std::io::{self, Write};
 use std::result::Result as StdResult;
 
+use futures::{Future, Stream};
+use futures::future::{loop_fn, Loop};
 use hyper::{Body, Client, Method, Request};
 use hyper::header::HeaderValue;
-use hyper::rt::{self, Future, Stream};
+use hyper::rt::{self};
 use hyper_tls::HttpsConnector;
 
 use serde::{Serialize, Deserialize, Deserializer};
@@ -22,6 +24,7 @@ pub enum Error {
     HyperError(hyper::error::Error),
     SerdeJsonError(serde_json::Error),
     ResponseError(u16, serde_json::Value),
+    Other(String),
 }
 
 impl From<hyper::error::Error> for Error {
@@ -603,6 +606,32 @@ pub struct Operation {
     pub response: Option<serde_json::Value>,
 }
 
+impl Operation {
+    fn wait_util_done(&self, access_token: &str) -> impl Future<Item=StdResult<serde_json::Value, Status>, Error=Error> {
+        let name = self.name.to_string();
+        let access_token = access_token.to_string();
+        loop_fn((), move |_| {
+            wait_operation(&name, &access_token, &WaitOperationRequestBody { timeout: Some("1s".to_string()) })
+            .and_then(|new_operation| {
+                match new_operation.done {
+                    None | Some(false) => Ok(Loop::Continue(())),
+                    Some(true) => {
+                        match new_operation.response {
+                            Some(response) => Ok(Loop::Break(Ok(response))),
+                            _ => {
+                                match new_operation.error {
+                                    Some(error) => Ok(Loop::Break(Err(error))),
+                                    None => Err(Error::Other(format!("wait_operation should return one of response or error : {:?}", new_operation))),
+                                }
+                            }
+                        }
+                    }
+                }
+            })
+        })        
+    }
+}
+
 /// Starts asynchronous cancellation on a long-running operation. The server makes a best effort to cancel the operation, but success is
 /// not guaranteed. If the server doesn't support this method, it returns google.rpc.Code.UNIMPLEMENTED. Clients can use Operations.GetOperation
 /// or other methods to check whether the cancellation succeeded or whether the operation completed despite cancellation. On successful cancellation,
@@ -691,7 +720,7 @@ pub struct Status {
     /// 
     /// An object containing fields of an arbitrary type. An additional field "@type" contains a URI identifying the type.
     /// Example: { "id": 1234, "@type": "types.example.com/standard/id" }.
-    pub details: Vec<serde_json::Value>,
+    pub details: Option<Vec<serde_json::Value>>,
 }
 
 /// Translates a large volume of text in asynchronous batch mode.
@@ -736,6 +765,20 @@ pub struct Glossary {
     pub language_codes_set: Option<LanguageCodesSet>,
 }
 
+impl Glossary {
+    fn new(name: String, input_config: GlossaryInputConfig, language_pair: LanguageCodePair) -> Glossary {
+        Glossary {
+            name,
+            input_config,
+            entry_count: None,
+            submit_time: None,
+            end_time: None,
+            language_pair: Some(language_pair),
+            language_codes_set: None,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct GlossaryInputConfig {
@@ -773,10 +816,9 @@ pub fn create_glossary(project_id: &str, location_id: &str, access_token: &str,
 
 /// Deletes a glossary, or cancels glossary construction if the glossary isn't created yet.
 /// Returns NOT_FOUND, if the glossary doesn't exist.
-pub fn delete_glossary(project_id: &str, location_id: &str, access_token: &str)
+pub fn delete_glossary(name: &str, access_token: &str)
         -> impl Future<Item=Operation, Error=Error> {
-    let url = format!("https://translation.googleapis.com/v3beta1/projects/{}/locations/{}/glossaries",
-        project_id, location_id);
+    let url = format!("https://translation.googleapis.com/v3beta1/{}", name);
     delete_request(&url, access_token)
 }
 
@@ -822,6 +864,8 @@ pub fn list_glossaries(project_id: &str, location_id: &str, access_token: &str, 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::rc::Rc;
+    use futures::future::{loop_fn, Loop};
 
     #[test]
     fn it_works() {
@@ -898,6 +942,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_batch_translate_text() {
         let project_id = std::env::var("PROJECT_ID").unwrap();
         let location_id = std::env::var("LOCATION_ID").unwrap();
@@ -929,9 +974,13 @@ mod tests {
         };
         tokio::runtime::current_thread::block_on_all(hyper::rt::lazy(move || {
             batch_translate_text(&project_id, &location_id, &access_token, &request)
-            .map(|operation| {
-                println!("{:?}", operation);
-                
+            .and_then(move |operation| {
+                operation.wait_util_done(&access_token).map(|r| {
+                    match r {
+                        Ok(_) => (),
+                        Err(e) => panic!("wait_operation error: {:?}", e),
+                    }
+                })
             })
             .map_err(|e| {
                 panic!("{:?}", e);
@@ -976,6 +1025,63 @@ mod tests {
             .map(|list_glossaries_response| {
                 println!("{:?}", list_glossaries_response);
                 
+            })
+            .map_err(|e| {
+                panic!("{:?}", e);
+            })
+        })).unwrap();
+    }
+
+    #[test]
+    #[ignore]
+    fn test_glossaries() {
+        let project_id = Rc::new(std::env::var("PROJECT_ID").unwrap());
+        let location_id = Rc::new(std::env::var("LOCATION_ID").unwrap());
+        let access_token = Rc::new(std::env::var("ACCESS_TOKEN").unwrap());
+        let glossary_bucket_id = Rc::new(std::env::var("GLOSSARY_BUCKET_ID").unwrap());
+        let test_glossary_name = format!("projects/{}/locations/{}/glossaries/test", project_id, location_id);
+        let test_glossary_gs = format!("gs://{}/test.tsv", glossary_bucket_id);
+        tokio::runtime::current_thread::block_on_all(hyper::rt::lazy(move || {
+            let access_token2 = access_token.clone();
+            let access_token3 = access_token.clone();
+            delete_glossary(&test_glossary_name, &access_token)
+            .then(move |r| -> Box<dyn Future<Item=(), Error=Error>> {
+                match r {
+                    Ok(operation) => {
+                        println!("{:?}", operation);
+                        Box::new(operation.wait_util_done(&access_token2).map(|r| {
+                            match r {
+                                Ok(_) => (),
+                                Err(e) => panic!("wait_operation error: {:?}", e),
+                            }
+                        }))
+                    },
+                    Err(Error::ResponseError(code, _)) if code == code::NOT_FOUND => {
+                        // nothing to do
+                        Box::new(futures::future::ok::<(), Error>(()))
+                    },
+                    Err(e) => panic!("{:?}", e),
+                }
+            })
+            .map_err(|e| {
+                panic!("{:?}", e);
+            })
+            .and_then(move |_| {
+                let glossary = Glossary::new(
+                    test_glossary_name,
+                    GlossaryInputConfig { gcs_source: GcsSource { input_uri: test_glossary_gs }},
+                    LanguageCodePair { source_language_code: "en".to_string(), target_language_code: "zh".to_string()}
+                );
+                create_glossary(&project_id, &location_id, &access_token, &glossary)
+            })
+            .and_then(move |operation| {
+                println!("{:?}", operation);
+                operation.wait_util_done(&access_token3).map(|r| {
+                    match r {
+                        Ok(_) => (),
+                        Err(e) => panic!("wait_operation error: {:?}", e),
+                    }
+                })
             })
             .map_err(|e| {
                 panic!("{:?}", e);
