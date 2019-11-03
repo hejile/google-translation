@@ -257,7 +257,9 @@ pub struct DetectLanguageItem {
 
 /// Detects the language of text within a request.
 pub fn detect_language(project_id: &str, location_id: &str, access_token: &str,
-        request_body: &DetectLanguageRequest) -> impl Future<Item=DetectLanguageResponse, Error=Error> {
+        request_body: &DetectLanguageRequest)
+    -> impl Future<Item=DetectLanguageResponse, Error=Error> + Send
+{
     let url = format!("https://translation.googleapis.com/v3beta1/projects/{}/locations/{}:detectLanguage",
         project_id, location_id);
     post_request(&url, access_token, request_body)
@@ -311,7 +313,9 @@ pub struct SupportedLanguage {
 
 /// Returns a list of supported languages for translation.
 pub fn get_supported_languages(project_id: &str, location_id: &str, access_token: &str,
-        query_params: &GetSupportedLanguagesQueryParams) -> impl Future<Item=SupportedLanguages, Error=Error> {
+        query_params: &GetSupportedLanguagesQueryParams)
+    -> impl Future<Item=SupportedLanguages, Error=Error> + Send
+{
     let url = format!("https://translation.googleapis.com/v3beta1/projects/{}/locations/{}/supportedLanguages",
         project_id, location_id);
     get_request(&url, access_token, query_params)
@@ -412,7 +416,9 @@ pub struct Translation {
 
 /// Translates input text and returns translated text.
 pub fn translate_text(project_id: &str, location_id: &str, access_token: &str,
-        request_body: &TranslateTextRequest) -> impl Future<Item=TranslateTextResponse, Error=Error> {
+        request_body: &TranslateTextRequest)
+    -> impl Future<Item=TranslateTextResponse, Error=Error> + Send
+{
     let url = format!("https://translation.googleapis.com/v3beta1/projects/{}/locations/{}:translateText",
         project_id, location_id);
     post_request(&url, access_token, request_body)
@@ -637,21 +643,21 @@ impl Operation {
 /// or other methods to check whether the cancellation succeeded or whether the operation completed despite cancellation. On successful cancellation,
 /// the operation is not deleted; instead, it becomes an operation with an Operation.error value with a google.rpc.Status.code of 1, corresponding to
 /// Code.CANCELLED.
-fn cancel_operation(name: &str, access_token: &str) -> impl Future<Item=(), Error=Error> {
+fn cancel_operation(name: &str, access_token: &str) -> impl Future<Item=(), Error=Error> + Send {
     let url = format!("https://translation.googleapis.com/v3beta1/{}:cancel", name);
     post_request(&url, access_token, &())
 }
 
 /// Deletes a long-running operation. This method indicates that the client is no longer interested in the operation result.
 /// It does not cancel the operation. If the server doesn't support this method, it returns google.rpc.Code.UNIMPLEMENTED.
-fn delete_operation(name: &str, access_token: &str) -> impl Future<Item=(), Error=Error> {
+fn delete_operation(name: &str, access_token: &str) -> impl Future<Item=(), Error=Error> + Send {
     let url = format!("https://translation.googleapis.com/v3beta1/{}:cancel", name);
     delete_request::<Empty>(&url, access_token).map(|_| ())
 }
 
 /// Gets the latest state of a long-running operation. Clients can use this method to poll the operation
 /// result at intervals as recommended by the API service.
-fn get_opertion(name: &str, access_token: &str) -> impl Future<Item=Operation, Error=Error> {
+fn get_opertion(name: &str, access_token: &str) -> impl Future<Item=Operation, Error=Error> + Send {
     let url = format!("https://translation.googleapis.com/v3beta1/{}", name);
     get_request(&url, access_token, &Empty)
 }
@@ -682,7 +688,9 @@ pub struct ListOperationsResponse {
 /// To override the binding, API services can add a binding such as "/v1/{name=users/*}/operations" to their service configuration.
 /// For backwards compatibility, the default name includes the operations collection id, however overriding users must ensure the name binding
 /// is the parent resource, without the operations collection id.
-fn list_operations(project_id: &str, location_id: &str, access_token: &str, params: &ListOperationsQueryParams) -> impl Future<Item=ListOperationsResponse, Error=Error> {
+fn list_operations(project_id: &str, location_id: &str, access_token: &str, params: &ListOperationsQueryParams)
+    -> impl Future<Item=ListOperationsResponse, Error=Error> + Send
+{
     let url = format!("https://translation.googleapis.com/v3beta1/projects/{}/locations/{}/operations", project_id, location_id);
     get_request(&url, access_token, params)
 }
@@ -703,7 +711,8 @@ struct WaitOperationRequestBody {
 /// best-effort basis. It may return the latest state before the specified timeout (including immediately), meaning even an immediate response is no
 /// guarantee that the operation is done.
 fn wait_operation(name: &str, access_token: &str, request_body: &WaitOperationRequestBody)
-        -> impl Future<Item=Operation, Error=Error> {
+    -> impl Future<Item=Operation, Error=Error> + Send
+{
     let url = format!("https://translation.googleapis.com/v3beta1/{}:wait", name);
     post_request(&url, access_token, request_body) 
 }
@@ -731,7 +740,9 @@ pub struct Status {
 /// 
 /// This call returns immediately and you can use google.longrunning.Operation.name to poll the status of the call.
 pub fn batch_translate_text(project_id: &str, location_id: &str, access_token: &str,
-        request_body: &BatchTranslateTextRequest) -> impl Future<Item=Operation, Error=Error> {
+        request_body: &BatchTranslateTextRequest)
+    -> impl Future<Item=Operation, Error=Error> + Send
+{
     let url = format!("https://translation.googleapis.com/v3beta1/projects/{}/locations/{}:batchTranslateText",
         project_id, location_id);
     post_request(&url, access_token, request_body)
@@ -807,8 +818,9 @@ pub struct LanguageCodesSet {
 }
 
 /// Creates a glossary and returns the long-running operation. Returns NOT_FOUND, if the project doesn't exist.
-pub fn create_glossary(project_id: &str, location_id: &str, access_token: &str,
-        glossary: &Glossary) -> impl Future<Item=Operation, Error=Error> {
+pub fn create_glossary(project_id: &str, location_id: &str, access_token: &str, glossary: &Glossary)
+    -> impl Future<Item=Operation, Error=Error> + Send
+{
     let url = format!("https://translation.googleapis.com/v3beta1/projects/{}/locations/{}/glossaries",
         project_id, location_id);
     post_request(&url, access_token, glossary)
@@ -817,13 +829,16 @@ pub fn create_glossary(project_id: &str, location_id: &str, access_token: &str,
 /// Deletes a glossary, or cancels glossary construction if the glossary isn't created yet.
 /// Returns NOT_FOUND, if the glossary doesn't exist.
 pub fn delete_glossary(name: &str, access_token: &str)
-        -> impl Future<Item=Operation, Error=Error> {
+    -> impl Future<Item=Operation, Error=Error> + Send
+{
     let url = format!("https://translation.googleapis.com/v3beta1/{}", name);
     delete_request(&url, access_token)
 }
 
 /// Gets a glossary. Returns NOT_FOUND, if the glossary doesn't exist.
-pub fn get_glossary(name: &str, access_token: &str) -> impl Future<Item=Operation, Error=Error> {
+pub fn get_glossary(name: &str, access_token: &str)
+    -> impl Future<Item=Operation, Error=Error> + Send
+{
     let url = format!("https://translation.googleapis.com/v3beta1/{}", name);
     get_request(&url, access_token, &Empty)
 }
@@ -855,7 +870,8 @@ pub struct ListGlossariesResponse {
 
 /// Lists glossaries in a project. Returns NOT_FOUND, if the project doesn't exist.
 pub fn list_glossaries(project_id: &str, location_id: &str, access_token: &str, params: &ListGlossariesQueryParams)
-        -> impl Future<Item=ListGlossariesResponse, Error=Error> {
+    -> impl Future<Item=ListGlossariesResponse, Error=Error> + Send
+{
     let url = format!("https://translation.googleapis.com/v3beta1/projects/{}/locations/{}/glossaries",
         project_id, location_id);
     get_request(&url, access_token, params)
