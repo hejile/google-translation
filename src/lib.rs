@@ -1,4 +1,6 @@
 #[macro_use]
+extern crate log;
+#[macro_use]
 extern crate serde;
 
 /**
@@ -122,7 +124,7 @@ fn post_request<IB, OB>(url: &str, access_token: &str, request_body: &IB) -> imp
         })
         .map_err(|err| Error::HyperError(err))
         .and_then(|(status, body)| {
-            println!("POST: {}", status);
+            info!("POST: {}", status);
             if status == code::OK {
                 OB::from_slice(body.as_ref()).map_err(|e| Error::SerdeJsonError(e))
             } else {
@@ -163,7 +165,7 @@ fn get_request<IB, OB>(url: &str, access_token: &str, params: &IB) -> impl Futur
         })
         .map_err(|err| Error::HyperError(err))
         .and_then(|(status, body)| {
-            println!("POST: {}", status);
+            info!("GET: {}", status);
             if status == code::OK {
                 OB::from_slice(body.as_ref()).map_err(|e| Error::SerdeJsonError(e))
             } else {
@@ -195,7 +197,7 @@ fn delete_request<OB>(url: &str, access_token: &str) -> impl Future<Item=OB, Err
         })
         .map_err(|err| Error::HyperError(err))
         .and_then(|(status, body)| {
-            println!("POST: {}", status);
+            info!("DELETE: {}", status);
             if status == code::OK {
                 OB::from_slice(body.as_ref()).map_err(|e| Error::SerdeJsonError(e))
             } else {
