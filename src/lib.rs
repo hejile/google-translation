@@ -643,34 +643,34 @@ impl Operation {
 /// or other methods to check whether the cancellation succeeded or whether the operation completed despite cancellation. On successful cancellation,
 /// the operation is not deleted; instead, it becomes an operation with an Operation.error value with a google.rpc.Status.code of 1, corresponding to
 /// Code.CANCELLED.
-fn cancel_operation(name: &str, access_token: &str) -> impl Future<Item=(), Error=Error> + Send {
+pub fn cancel_operation(name: &str, access_token: &str) -> impl Future<Item=(), Error=Error> + Send {
     let url = format!("https://translation.googleapis.com/v3beta1/{}:cancel", name);
     post_request(&url, access_token, &())
 }
 
 /// Deletes a long-running operation. This method indicates that the client is no longer interested in the operation result.
 /// It does not cancel the operation. If the server doesn't support this method, it returns google.rpc.Code.UNIMPLEMENTED.
-fn delete_operation(name: &str, access_token: &str) -> impl Future<Item=(), Error=Error> + Send {
+pub fn delete_operation(name: &str, access_token: &str) -> impl Future<Item=(), Error=Error> + Send {
     let url = format!("https://translation.googleapis.com/v3beta1/{}:cancel", name);
     delete_request::<Empty>(&url, access_token).map(|_| ())
 }
 
 /// Gets the latest state of a long-running operation. Clients can use this method to poll the operation
 /// result at intervals as recommended by the API service.
-fn get_opertion(name: &str, access_token: &str) -> impl Future<Item=Operation, Error=Error> + Send {
+pub fn get_opertion(name: &str, access_token: &str) -> impl Future<Item=Operation, Error=Error> + Send {
     let url = format!("https://translation.googleapis.com/v3beta1/{}", name);
     get_request(&url, access_token, &Empty)
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct ListOperationsQueryParams {
+pub struct ListOperationsQueryParams {
     /// The standard list filter.
-    filter: Option<String>,
+    pub filter: Option<String>,
     /// The standard list page size.
-    page_size: Option<usize>,
+    pub page_size: Option<usize>,
     /// The standard list page token.
-    page_token: Option<String>,
+    pub page_token: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -688,7 +688,7 @@ pub struct ListOperationsResponse {
 /// To override the binding, API services can add a binding such as "/v1/{name=users/*}/operations" to their service configuration.
 /// For backwards compatibility, the default name includes the operations collection id, however overriding users must ensure the name binding
 /// is the parent resource, without the operations collection id.
-fn list_operations(project_id: &str, location_id: &str, access_token: &str, params: &ListOperationsQueryParams)
+pub fn list_operations(project_id: &str, location_id: &str, access_token: &str, params: &ListOperationsQueryParams)
     -> impl Future<Item=ListOperationsResponse, Error=Error> + Send
 {
     let url = format!("https://translation.googleapis.com/v3beta1/projects/{}/locations/{}/operations", project_id, location_id);
@@ -697,7 +697,7 @@ fn list_operations(project_id: &str, location_id: &str, access_token: &str, para
 
 #[derive(Serialize)]
 #[serde(rename_all="camelCase")]
-struct WaitOperationRequestBody {
+pub struct WaitOperationRequestBody {
     /// The maximum duration to wait before timing out. If left blank, the wait will be at most the time permitted by the underlying HTTP/RPC protocol.
     /// If RPC context deadline is also specified, the shorter one will be used.
     /// 
@@ -710,7 +710,7 @@ struct WaitOperationRequestBody {
 /// the HTTP/RPC timeout is used. If the server does not support this method, it returns google.rpc.Code.UNIMPLEMENTED. Note that this method is on a
 /// best-effort basis. It may return the latest state before the specified timeout (including immediately), meaning even an immediate response is no
 /// guarantee that the operation is done.
-fn wait_operation(name: &str, access_token: &str, request_body: &WaitOperationRequestBody)
+pub fn wait_operation(name: &str, access_token: &str, request_body: &WaitOperationRequestBody)
     -> impl Future<Item=Operation, Error=Error> + Send
 {
     let url = format!("https://translation.googleapis.com/v3beta1/{}:wait", name);
@@ -777,7 +777,7 @@ pub struct Glossary {
 }
 
 impl Glossary {
-    fn new(name: String, input_config: GlossaryInputConfig, language_pair: LanguageCodePair) -> Glossary {
+    pub fn new(name: String, input_config: GlossaryInputConfig, language_pair: LanguageCodePair) -> Glossary {
         Glossary {
             name,
             input_config,
