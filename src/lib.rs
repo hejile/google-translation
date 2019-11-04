@@ -613,7 +613,7 @@ pub struct Operation {
 }
 
 impl Operation {
-    fn wait_util_done(&self, access_token: &str) -> impl Future<Item=StdResult<serde_json::Value, Status>, Error=Error> {
+    pub fn wait_util_done(&self, access_token: &str) -> impl Future<Item=StdResult<serde_json::Value, Status>, Error=Error> {
         let name = self.name.to_string();
         let access_token = access_token.to_string();
         loop_fn((), move |_| {
